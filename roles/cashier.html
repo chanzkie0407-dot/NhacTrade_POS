@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cashier — NhacTrade POS</title>
+  <link rel="stylesheet" href="../shared/styles.css">
+  <style>
+    body { padding: 10px; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+  </style>
+</head>
+<body>
+  <div>
+    <!-- SELECT STORE SCREEN -->
+    <div id="select-store" class="screen active">
+      <h2>👤 Cashier — Select Store</h2>
+      <p>Welcome!</p>
+      <select id="selected-store">
+        <option value="">-- Choose Store --</option>
+      </select>
+      <br><br>
+      <button class="btn-primary" onclick="goToStartShift()">Continue</button>
+      <button class="btn-danger" onclick="parent.doLogout()">Logout</button>
+    </div>
+
+    <!-- START SHIFT SCREEN -->
+    <div id="start-shift" class="screen">
+      <h2>🕐 Start Shift</h2>
+      <label>Enter Opening Cash Float (₱):</label><br>
+      <input type="number" id="cash-float" placeholder="e.g. 5000" min="0">
+      <br><br>
+      <button class="btn-success" onclick="confirmStartShift()">✅ Start Shift</button>
+      <button class="btn-danger" onclick="goBackToStoreSelect()">Back</button>
+    </div>
+  </div>
+
+  <script src="../firebase-config.js"></script>
+  <script>
+    let selectedStoreId = null;
+    let selectedStoreName = null;
+    let stores = [];
+
+    // Load stores on open
+    async function loadStores() {
+      const snap = await db.collection('stores').get();
+      stores = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      populateStoreDropdown();
+    }
+
+    function populateStoreDropdown() {
+      const select = document.getElementById('selected-store');
+      select.innerHTML = '<option value="">-- Choose Store --</option>';
+      stores.forEach(s => {
+        select.innerHTML += `<option value="${s.id}">${s.name}</option>`;
+      });
+    }
+
+    function goToStartShift() {
+      const select = document.getElementById('selected-store');
+      if (!select.value) {
+        alert("⚠️ Select a store first!");
+        return;
+      }
+      selectedStoreId = select.value;
+      selectedStoreName = stores.find(s => s.id === selectedStoreId)?.name;
+      document.getElementById('select-store').classList.remove('active');
+      document.getElementById('start-shift').classList.add('active');
+    }
+
+    function goBackToStoreSelect() {
+      document.getElementById('start-shift').classList.remove('active');
+      document.getElementById('select-store').classList.add('active');
+    }
+
+    async function confirmStartShift() {
+      const float = document.getElementById('cash-float').value;
+      if (!float || float <= 0) {
+        alert("⚠️ Enter valid cash float amount!");
+        return;
+      }
+
+      // Record shift start
+      await db.collection('shifts').add({
+        storeId: selectedStoreId,
+        storeName: selectedStoreName,
+        cashierId: parent.currentUser?.id,
+        cashierName: parent.currentUser?.name,
+        openingFloat: parseFloat(float),
+        startedAt: new Date(),
+        status: 'open'
+      });
+
+      alert(`✅ Shift started!\nStore: ${selectedStoreName}\nOpening Float: ₱${parseFloat(float).toFixed(2)}\n\nPOS features loading next babe 💛`);
+      // TODO: Show main POS screen in next phase
+    }
+
+    window.onload = loadStores;
+  </script>
+</body>
+</html>
