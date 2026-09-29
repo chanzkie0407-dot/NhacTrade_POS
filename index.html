@@ -62,7 +62,7 @@
         measurementId: "G-9LLPPB482N"
       };
 
-      // === GLOBAL VARIABLES — NAKAUNA NA ✅ ===
+      // === GLOBAL VARIABLES ===
       let db = null;
       let currentUser = null;
       let inactivityTimer = null;
@@ -79,11 +79,9 @@
           firebase.initializeApp(firebaseConfig);
           db = firebase.firestore();
           
-          // Enable offline mode
           await db.enablePersistence({ synchronizeTabs: true });
           console.log("✅ Offline mode ready");
           
-          // Update status
           document.getElementById('firebase-status').textContent = "● Connected";
           document.getElementById('firebase-status').className = "status-indicator status-ready";
           
@@ -94,26 +92,108 @@
       }
 
       // === DATA LOADERS ===
-      async function loadCashiers() {
-        if (!db) return;
-        try {
-          const snap = await db.collection('cashiers').get();
-          cashiers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        } catch (err) {
-          console.log("No cashiers yet — will add later");
-          cashiers = [];
-        }
-      }
-      
       async function loadStores() {
         if (!db) return;
         try {
           const snap = await db.collection('stores').get();
           stores = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          renderStoreList();
+          updateStoreDropdown();
         } catch (err) {
-          console.log("No stores yet — will add later");
+          console.log("No stores yet");
           stores = [];
         }
+      }
+      
+      async function loadCashiers() {
+        if (!db) return;
+        try {
+          const snap = await db.collection('cashiers').get();
+          cashiers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          renderCashierList();
+        } catch (err) {
+          console.log("No cashiers yet");
+          cashiers = [];
+        }
+      }
+
+      // === STORE MANAGEMENT ===
+      async function addStore() {
+        const name = document.getElementById('store-name').value.trim();
+        const location = document.getElementById('store-location').value.trim();
+        
+        if (!name) { alert("⚠️ Ilagay ang Store Name!"); return; }
+        
+        await db.collection('stores').add({
+          name: name,
+          location: location || '',
+          createdAt: new Date()
+        });
+        
+        document.getElementById('store-name').value = '';
+        document.getElementById('store-location').value = '';
+        await loadStores();
+        alert("✅ Store added successfully!");
+      }
+
+      function renderStoreList() {
+        const list = document.getElementById('store-list');
+        if (stores.length === 0) {
+          list.innerHTML = "<em>No stores added yet</em>";
+          return;
+        }
+        list.innerHTML = stores.map(s => `
+          <div style="padding:8px 0; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+            <div><strong>${s.name}</strong>${s.location ? `<br><small>${s.location}</small>` : ''}</div>
+            <button class="btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteStore('${s.id}')">Delete</button>
+          </div>
+        `).join('');
+      }
+
+      async function deleteStore(id) {
+        if (!confirm("❌ Burahin ba talaga?")) return;
+        await db.collection('stores').doc(id).delete();
+        await loadStores();
+      }
+
+      // === CASHIER MANAGEMENT ===
+      async function addCashier() {
+        const name = document.getElementById('cashier-name').value.trim();
+        const pass = document.getElementById('cashier-pass').value.trim();
+        
+        if (!name || !pass) { alert("⚠️ Ilagay ang Pangalan at Password!"); return; }
+        if (pass.length !== 4) { alert("⚠️ Dapat 4 na numero lang ang Password!"); return; }
+        
+        await db.collection('cashiers').add({
+          name: name,
+          password: pass,
+          createdAt: new Date()
+        });
+        
+        document.getElementById('cashier-name').value = '';
+        document.getElementById('cashier-pass').value = '';
+        await loadCashiers();
+        alert("✅ Cashier added successfully!");
+      }
+
+      function renderCashierList() {
+        const list = document.getElementById('cashier-list');
+        if (cashiers.length === 0) {
+          list.innerHTML = "<em>No cashiers added yet</em>";
+          return;
+        }
+        list.innerHTML = cashiers.map(c => `
+          <div style="padding:8px 0; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+            <div><strong>${c.name}</strong><br><small>Password: ${c.password}</small></div>
+            <button class="btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteCashier('${c.id}')">Delete</button>
+          </div>
+        `).join('');
+      }
+
+      async function deleteCashier(id) {
+        if (!confirm("❌ Burahin ba talaga?")) return;
+        await db.collection('cashiers').doc(id).delete();
+        await loadCashiers();
       }
 
       // === SCREEN MANAGEMENT ===
@@ -146,29 +226,20 @@
 
       // === LOGIN FUNCTION ===
       async function login() {
-        if (!db) {
-          alert("⏳ Connecting to server... Please try again in 3 seconds.");
-          return;
-        }
+        if (!db) { alert("⏳ Connecting... Try again in 3 seconds."); return; }
         
         const role = document.getElementById('user-role').value;
         const pass = document.getElementById('user-password').value;
         const errorEl = document.getElementById('login-error');
         errorEl.textContent = "";
 
-        if (!role) {
-          errorEl.textContent = "⚠️ Select a role first!";
-          return;
-        }
+        if (!role) { errorEl.textContent = "⚠️ Select a role first!"; return; }
 
-        // Admin Login
+        // Admin
         if (role === 'admin') {
           try {
             const adminDoc = await db.collection('credentials').doc('admin').get();
-            const adminPass = adminDoc.exists && adminDoc.data() && adminDoc.data().password
-              ? adminDoc.data().password 
-              : DEFAULT_PASS.admin;
-            
+            const adminPass = adminDoc.exists && adminDoc.data()?.password || DEFAULT_PASS.admin;
             if (pass === adminPass) {
               currentUser = { role, id: 'admin', name: 'Admin' };
               await loadStores();
@@ -176,12 +247,8 @@
               showScreen('screen-admin');
               resetInactivityTimer();
               return;
-            } else {
-              errorEl.textContent = "❌ Wrong password!";
-              return;
             }
-          } catch (err) {
-            console.log("Using default admin password");
+          } catch {
             if (pass === DEFAULT_PASS.admin) {
               currentUser = { role, id: 'admin', name: 'Admin' };
               await loadStores();
@@ -190,42 +257,35 @@
               resetInactivityTimer();
               return;
             }
-            errorEl.textContent = "❌ Wrong password!";
-            return;
           }
+          errorEl.textContent = "❌ Wrong password!";
+          return;
         }
 
-        // SP Login
+        // SP
         if (role === 'sp') {
           try {
             const spDoc = await db.collection('credentials').doc('sp').get();
-            const spPass = spDoc.exists && spDoc.data() && spDoc.data().password
-              ? spDoc.data().password 
-              : DEFAULT_PASS.sp;
-            
+            const spPass = spDoc.exists && spDoc.data()?.password || DEFAULT_PASS.sp;
             if (pass === spPass) {
               currentUser = { role, id: 'sp', name: 'Service Provider' };
               showScreen('screen-sp');
               resetInactivityTimer();
               return;
-            } else {
-              errorEl.textContent = "❌ Wrong password!";
-              return;
             }
-          } catch (err) {
-            console.log("Using default SP password");
+          } catch {
             if (pass === DEFAULT_PASS.sp) {
               currentUser = { role, id: 'sp', name: 'Service Provider' };
               showScreen('screen-sp');
               resetInactivityTimer();
               return;
             }
-            errorEl.textContent = "❌ Wrong password!";
-            return;
           }
+          errorEl.textContent = "❌ Wrong password!";
+          return;
         }
 
-        // Cashier Login
+        // Cashier
         if (role === 'cashier') {
           await loadCashiers();
           const found = cashiers.find(c => c.password === pass);
@@ -235,18 +295,36 @@
             showScreen('cashier-select-store');
             resetInactivityTimer();
             return;
-          } else {
-            errorEl.textContent = "❌ Cashier not found or wrong password!";
-            return;
           }
+          errorEl.textContent = "❌ Cashier not found or wrong password!";
         }
       }
 
-      // Reset timer on activity
+      // === CASHIER HELPERS ===
+      function updateStoreDropdown() {
+        const select = document.getElementById('selected-store');
+        if (select && stores.length > 0) {
+          select.innerHTML = '<option value="">-- Choose Store --</option>';
+          stores.forEach(s => select.innerHTML += `<option value="${s.id}">${s.name}</option>`);
+        }
+      }
+
+      function cashierSelectStore() {
+        const select = document.getElementById('selected-store');
+        if (!select.value) { alert("Select a store first!"); return; }
+        showScreen('cashier-start-shift');
+      }
+
+      function startShift() {
+        const float = document.getElementById('cash-float').value;
+        if (!float || float <= 0) { alert("Enter valid cash float amount!"); return; }
+        alert("✅ Shift started! POS features loading next babe 💛");
+      }
+
+      // Reset timer
       document.addEventListener('click', resetInactivityTimer);
       document.addEventListener('keydown', resetInactivityTimer);
       
-      // === START FIREBASE ===
       initFirebase();
     </script>
 
@@ -272,12 +350,32 @@
       <button class="btn-danger" onclick="doLogout()">Logout</button>
     </div>
 
-    <!-- ADMIN SCREEN -->
-    <div id="screen-admin" class="screen hidden card">
-      <h2>👑 Admin / Owner Dashboard</h2>
-      <button class="btn-danger" onclick="doLogout()">Logout</button>
-      <hr style="margin:15px 0;">
-      <p>✅ Admin base loaded — Store & Cashier Management next!</p>
+    <!-- ADMIN SCREEN — WITH STORE & CASHIER MANAGEMENT -->
+    <div id="screen-admin" class="screen hidden">
+      <div class="card">
+        <h2>👑 Admin / Owner Dashboard</h2>
+        <button class="btn-danger" onclick="doLogout()">Logout</button>
+      </div>
+
+      <div class="card">
+        <h3>🏪 Store Management</h3>
+        <input type="text" id="store-name" placeholder="Store Name">
+        <input type="text" id="store-location" placeholder="Location (Optional)">
+        <button class="btn-success" onclick="addStore()">➕ Add Store</button>
+        <hr style="margin:10px 0;">
+        <h4>List of Stores</h4>
+        <div id="store-list"><em>No stores added yet</em></div>
+      </div>
+
+      <div class="card">
+        <h3>👤 Cashier Management</h3>
+        <input type="text" id="cashier-name" placeholder="Full Name">
+        <input type="text" id="cashier-pass" placeholder="4-digit Password" maxlength="4">
+        <button class="btn-success" onclick="addCashier()">➕ Add Cashier</button>
+        <hr style="margin:10px 0;">
+        <h4>List of Cashiers</h4>
+        <div id="cashier-list"><em>No cashiers added yet</em></div>
+      </div>
     </div>
 
     <!-- SP SCREEN -->
@@ -288,40 +386,6 @@
       <p>✅ SP base loaded — Subscription & Password Controls next!</p>
     </div>
 
-    <script>
-      // === POPULATE STORE DROPDOWN ===
-      function updateStoreDropdown() {
-        const select = document.getElementById('selected-store');
-        if (select && stores.length > 0) {
-          select.innerHTML = '<option value="">-- Choose Store --</option>';
-          stores.forEach(s => {
-            select.innerHTML += `<option value="${s.id}">${s.name}</option>`;
-          });
-        }
-      }
-      
-      setTimeout(updateStoreDropdown, 500);
-
-      // === CASHIER SELECT STORE ===
-      function cashierSelectStore() {
-        const select = document.getElementById('selected-store');
-        if (!select.value) {
-          alert("Select a store first!");
-          return;
-        }
-        showScreen('cashier-start-shift');
-      }
-
-      // === START SHIFT ===
-      function startShift() {
-        const float = document.getElementById('cash-float').value;
-        if (!float || float <= 0) {
-          alert("Enter valid cash float amount!");
-          return;
-        }
-        alert("✅ Shift started! POS features loading next babe 💛");
-      }
-    </script>
   </div>
 </body>
 </html>
