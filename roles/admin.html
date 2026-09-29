@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard — NhacTrade POS</title>
+  <link rel="stylesheet" href="../shared/styles.css">
+  <style>
+    body { padding: 10px; }
+  </style>
+</head>
+<body>
+  <div>
+    <h2>👑 Admin / Owner Dashboard</h2>
+    <button class="btn-danger" onclick="parent.doLogout()">Logout</button>
+    <hr style="margin:15px 0;">
+
+    <!-- STORE MANAGEMENT -->
+    <div class="card">
+      <h3>🏪 Store Management</h3>
+      <input type="text" id="store-name" placeholder="Store Name">
+      <input type="text" id="store-location" placeholder="Location (Optional)">
+      <button class="btn-success" onclick="addStore()">➕ Add Store</button>
+      <hr style="margin:10px 0;">
+      <h4>List of Stores</h4>
+      <div id="store-list"><em>No stores added yet</em></div>
+    </div>
+
+    <!-- CASHIER MANAGEMENT -->
+    <div class="card">
+      <h3>👤 Cashier Management</h3>
+      <input type="text" id="cashier-name" placeholder="Full Name">
+      <input type="text" id="cashier-pass" placeholder="4-digit Password" maxlength="4">
+      <button class="btn-success" onclick="addCashier()">➕ Add Cashier</button>
+      <hr style="margin:10px 0;">
+      <h4>List of Cashiers</h4>
+      <div id="cashier-list"><em>No cashiers added yet</em></div>
+    </div>
+  </div>
+
+  <script src="../firebase-config.js"></script>
+  <script>
+    let stores = [];
+    let cashiers = [];
+
+    // === LOAD DATA ===
+    async function loadData() {
+      await loadStores();
+      await loadCashiers();
+    }
+
+    async function loadStores() {
+      const snap = await db.collection('stores').get();
+      stores = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderStoreList();
+      updateStoreDropdown();
+    }
+
+    async function loadCashiers() {
+      const snap = await db.collection('cashiers').get();
+      cashiers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderCashierList();
+    }
+
+    // === STORE ===
+    async function addStore() {
+      const name = document.getElementById('store-name').value.trim();
+      const location = document.getElementById('store-location').value.trim();
+      if (!name) { alert("⚠️ Ilagay ang Store Name!"); return; }
+
+      await db.collection('stores').add({
+        name, location: location || '', createdAt: new Date()
+      });
+      document.getElementById('store-name').value = '';
+      document.getElementById('store-location').value = '';
+      await loadStores();
+      alert("✅ Store added successfully!");
+    }
+
+    function renderStoreList() {
+      const list = document.getElementById('store-list');
+      if (stores.length === 0) {
+        list.innerHTML = "<em>No stores added yet</em>";
+        return;
+      }
+      list.innerHTML = stores.map(s => `
+        <div style="padding:8px 0; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+          <div><strong>${s.name}</strong>${s.location ? `<br><small>${s.location}</small>` : ''}</div>
+          <button class="btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteStore('${s.id}')">Delete</button>
+        </div>
+      `).join('');
+    }
+
+    async function deleteStore(id) {
+      if (!confirm("❌ Burahin ba talaga?")) return;
+      await db.collection('stores').doc(id).delete();
+      await loadStores();
+    }
+
+    // === CASHIER ===
+    async function addCashier() {
+      const name = document.getElementById('cashier-name').value.trim();
+      const pass = document.getElementById('cashier-pass').value.trim();
+      if (!name || !pass) { alert("⚠️ Ilagay ang Pangalan at Password!"); return; }
+      if (pass.length !== 4) { alert("⚠️ Dapat 4 na numero lang ang Password!"); return; }
+
+      await db.collection('cashiers').add({
+        name, password: pass, createdAt: new Date()
+      });
+      document.getElementById('cashier-name').value = '';
+      document.getElementById('cashier-pass').value = '';
+      await loadCashiers();
+      alert("✅ Cashier added successfully!");
+    }
+
+    function renderCashierList() {
+      const list = document.getElementById('cashier-list');
+      if (cashiers.length === 0) {
+        list.innerHTML = "<em>No cashiers added yet</em>";
+        return;
+      }
+      list.innerHTML = cashiers.map(c => `
+        <div style="padding:8px 0; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+          <div><strong>${c.name}</strong><br><small>Password: ${c.password}</small></div>
+          <button class="btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteCashier('${c.id}')">Delete</button>
+        </div>
+      `).join('');
+    }
+
+    async function deleteCashier(id) {
+      if (!confirm("❌ Burahin ba talaga?")) return;
+      await db.collection('cashiers').doc(id).delete();
+      await loadCashiers();
+    }
+
+    // Update store dropdown in parent
+    function updateStoreDropdown() {
+      if (parent.updateStoreDropdownInner) parent.updateStoreDropdownInner(stores);
+    }
+
+    window.onload = loadData;
+  </script>
+</body>
+</html>
