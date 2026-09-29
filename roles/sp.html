@@ -114,19 +114,52 @@
     }
 
     function unlockSystem() {
-      const code = document.getElementById('master-code').value.trim();
-      if (code === MASTER_UNLOCK) {
-        isLocked = false;
-        failedAttempts = 0;
-        localStorage.setItem('isLocked', 'false');
-        localStorage.setItem('failedAttempts', '0');
-        updateLockUI();
-        document.getElementById('master-code').value = '';
-        alert('✅ System Unlocked! Pin attempts reset to 0');
-      } else {
-        alert('❌ Wrong Master Code');
-      }
-    }
+      // Palitan ang pin check section sa sp.html:
+const MASTER_UNLOCK = 'SPUNLOCK99'; // Palitan mo ito!
+
+function getPinState() {
+  return {
+    currentPin: localStorage.getItem('privacyPin') || '1234',
+    failedAttempts: parseInt(localStorage.getItem('failedAttempts') || '0'),
+    isLocked: localStorage.getItem('isLocked') === 'true'
+  };
+}
+
+function updateLockUI() {
+  const state = getPinState();
+  document.getElementById('attempt-count').textContent = state.failedAttempts;
+  
+  if (state.isLocked) {
+    document.getElementById('lock-status').textContent = '🔒 SYSTEM LOCKED — Unlock below';
+    document.getElementById('lock-status').style.color = 'red';
+  } else {
+    document.getElementById('lock-status').textContent = '✅ System Unlocked';
+    document.getElementById('lock-status').style.color = 'green';
+  }
+}
+
+function unlockSystem() {
+  const code = document.getElementById('master-code').value.trim();
+  if (code === MASTER_UNLOCK) {
+    localStorage.setItem('isLocked', 'false');
+    localStorage.setItem('failedAttempts', '0');
+    alert('✅ Unlocked! Attempts reset to 0');
+    updateLockUI();
+  } else {
+    alert('❌ Wrong Master Code');
+  }
+}
+
+function setNewPin() {
+  const newPin = document.getElementById('new-pin').value.trim();
+  if (!/^\d{4,6}$/.test(newPin)) {
+    alert('❌ 4-6 digits only');
+    return;
+  }
+  localStorage.setItem('privacyPin', newPin);
+  alert('✅ Pin updated! Same across all pages');
+  document.getElementById('new-pin').value = '';
+}
 
     function logout() {
       if (window.parent && window.parent.showScreen) {
