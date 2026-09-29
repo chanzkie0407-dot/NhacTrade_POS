@@ -6,28 +6,29 @@
   <title>Admin Dashboard — NhacTrade POS</title>
   <link rel="stylesheet" href="../shared/styles.css">
   <style>
-    body { padding: 10px; }
+    body { padding: 15px; }
     .locked-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(255,0,0,0.1);
+      background: rgba(0,0,0,0.5);
       display: flex; align-items: center; justify-content: center;
-      z-index: 999;
+      z-index: 9999;
     }
     .locked-box {
       background: white; padding: 30px; border-radius: 12px;
-      border: 3px solid red; text-align: center;
+      border: 3px solid #dc2626; text-align: center; max-width: 400px;
     }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
   <div id="admin-content">
     <h2>👑 Admin / Owner Dashboard</h2>
-    <button class="btn-danger" onclick="parent.doLogout()">Logout</button>
+    <button class="btn-danger" onclick="doLogout()">🚪 Logout</button>
     <hr style="margin:15px 0;">
 
-    <!-- PRIVACY PIN STATUS -->
-    <div class="card" id="pin-status-card">
+    <!-- PRIVACY PIN STATUS — Iisang Source Lang -->
+    <div class="card">
       <h3>🔐 Privacy Pin Status</h3>
       <p>Failed Attempts: <strong id="attempt-count">0</strong>/5</p>
       <p id="system-status" style="color:green; font-weight:bold;">✅ System Unlocked</p>
@@ -58,12 +59,13 @@
   </div>
 
   <!-- LOCKED OVERLAY -->
-  <div id="locked-overlay" class="locked-overlay" style="display:none;">
+  <div id="locked-overlay" class="locked-overlay hidden">
     <div class="locked-box">
-      <h2 style="color:red;">🔒 SYSTEM LOCKED</h2>
-      <p>Reached 5 failed attempts</p>
-      <p>Contact <strong>Service Provider</strong> to Unlock</p>
-      <button class="btn-danger" onclick="parent.doLogout()">Logout</button>
+      <h2 style="color:#dc2626;">🔒 SYSTEM LOCKED</h2>
+      <p>Reached 5 failed PIN attempts</p>
+      <p>Contact <strong>Service Provider</strong> to unlock</p>
+      <br>
+      <button class="btn-danger" onclick="doLogout()">🚪 Logout</button>
     </div>
   </div>
 
@@ -73,8 +75,10 @@
     let cashiers = [];
     let pinVerified = false;
 
-    // === PIN VERIFICATION SYSTEM ===
-    function getState() {
+    // ==============================================
+    // SHARED PIN STATE — SAME SA LAHAT NG PAGE
+    // ==============================================
+    function getPinState() {
       return {
         currentPin: localStorage.getItem('privacyPin') || '1234',
         failedAttempts: parseInt(localStorage.getItem('failedAttempts') || '0'),
@@ -82,31 +86,31 @@
       };
     }
 
-    function saveState(state) {
+    function savePinState(state) {
       localStorage.setItem('failedAttempts', state.failedAttempts);
       localStorage.setItem('isLocked', state.isLocked);
-      updateStatusUI();
+      updatePinUI();
     }
 
-    function updateStatusUI() {
-      const state = getState();
+    function updatePinUI() {
+      const state = getPinState();
       document.getElementById('attempt-count').textContent = state.failedAttempts;
       
       if (state.isLocked) {
         document.getElementById('system-status').textContent = '🔒 SYSTEM LOCKED — Contact SP';
-        document.getElementById('system-status').style.color = 'red';
-        document.getElementById('locked-overlay').style.display = 'flex';
+        document.getElementById('system-status').style.color = '#dc2626';
+        document.getElementById('locked-overlay').classList.remove('hidden');
       } else {
         document.getElementById('system-status').textContent = '✅ System Unlocked';
-        document.getElementById('system-status').style.color = 'green';
-        document.getElementById('locked-overlay').style.display = 'none';
+        document.getElementById('system-status').style.color = '#16a34a';
+        document.getElementById('locked-overlay').classList.add('hidden');
       }
     }
 
     async function verifyPin() {
-      const state = getState();
+      const state = getPinState();
       if (state.isLocked) {
-        alert('🔒 SYSTEM LOCKED — Please contact Service Provider');
+        alert('🔒 SYSTEM LOCKED — Contact Service Provider');
         return false;
       }
 
@@ -114,21 +118,19 @@
       if (!inputPin) return false;
 
       if (inputPin === state.currentPin) {
-        // Correct — reset attempts
         localStorage.setItem('failedAttempts', '0');
         pinVerified = true;
-        updateStatusUI();
+        updatePinUI();
         return true;
       } else {
-        // Wrong — increment attempts
         state.failedAttempts++;
         if (state.failedAttempts >= 5) {
           state.isLocked = true;
-          alert(`❌ Wrong Pin! No attempts left — SYSTEM LOCKED`);
+          alert(`❌ Maximum attempts reached! System Locked`);
         } else {
           alert(`❌ Wrong Pin! ${5 - state.failedAttempts} attempt(s) remaining`);
         }
-        saveState(state);
+        savePinState(state);
         return false;
       }
     }
@@ -138,55 +140,68 @@
       await verifyPin();
     }
 
-    // === PROTECTED ACTION WRAPPERS ===
-    async function protectedAction(fn) {
-      if (!pinVerified) {
-        const ok = await verifyPin();
-        if (!ok) return;
-      }
-      await fn();
+    // ==============================================
+    // PROTECTED ACTIONS — Pin muna bago mag-proceed
+    // ==============================================
+    async function requirePin() {
+      if (pinVerified) return true;
+      return await verifyPin();
     }
 
-    // === LOAD DATA ===
+    // ==============================================
+    // FIRESTORE DATA LOAD
+    // ==============================================
     async function loadData() {
-      const state = getState();
-      updateStatusUI();
-      
-      if (state.isLocked) return; // Don't load if locked
-      
-      await loadStores();
-      await loadCashiers();
+      updatePinUI();
+      const state = getPinState();
+      if (state.isLocked) return;
+
+      try {
+        await loadStores();
+        await loadCashiers();
+      } catch (err) {
+        console.error('Load error:', err);
+        alert('⚠️ Error loading data: ' + err.message);
+      }
     }
 
     async function loadStores() {
-      if (!db) return;
-      const snap = await db.collection('stores').get();
-      stores = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const snapshot = await db.collection('stores').get();
+      stores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       renderStoreList();
-      updateStoreDropdown();
+      notifyParentStoreUpdate();
     }
 
     async function loadCashiers() {
-      if (!db) return;
-      const snap = await db.collection('cashiers').get();
-      cashiers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const snapshot = await db.collection('cashiers').get();
+      cashiers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       renderCashierList();
     }
 
-    // === STORE ===
+    // ==============================================
+    // STORE MANAGEMENT
+    // ==============================================
     async function addStore() {
-      await protectedAction(async () => {
-        const name = document.getElementById('store-name').value.trim();
-        const location = document.getElementById('store-location').value.trim();
-        if (!name) { alert("⚠️ Ilagay ang Store Name!"); return; }
+      if (!(await requirePin())) return;
+
+      const name = document.getElementById('store-name').value.trim();
+      const location = document.getElementById('store-location').value.trim();
+
+      if (!name) { alert("⚠️ Ilagay ang Store Name!"); return; }
+
+      try {
         await db.collection('stores').add({
-          name, location: location || '', createdAt: new Date()
+          name,
+          location: location || '',
+          createdAt: new Date()
         });
         document.getElementById('store-name').value = '';
         document.getElementById('store-location').value = '';
         await loadStores();
         alert("✅ Store added successfully!");
-      });
+      } catch (err) {
+        alert("❌ Error adding store: " + err.message);
+      }
     }
 
     function renderStoreList() {
@@ -196,36 +211,53 @@
         return;
       }
       list.innerHTML = stores.map(s => `
-        <div style="padding:8px 0; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
-          <div><strong>${s.name}</strong>${s.location ? `<br><small>${s.location}</small>` : ''}</div>
-          <button class="btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteStore('${s.id}')">Delete</button>
+        <div style="padding:10px 0; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <strong>${s.name}</strong>
+            ${s.location ? `<br><small style="color:#666;">📍 ${s.location}</small>` : ''}
+          </div>
+          <button class="btn-danger" style="padding:6px 12px; font-size:14px;" onclick="deleteStore('${s.id}')">🗑️ Delete</button>
         </div>
       `).join('');
     }
 
     async function deleteStore(id) {
-      await protectedAction(async () => {
-        if (!confirm("❌ Burahin ba talaga?")) return;
+      if (!(await requirePin())) return;
+      if (!confirm("❌ Burahin ba talaga ang store na ito?")) return;
+
+      try {
         await db.collection('stores').doc(id).delete();
         await loadStores();
-      });
+      } catch (err) {
+        alert("❌ Error deleting: " + err.message);
+      }
     }
 
-    // === CASHIER ===
+    // ==============================================
+    // CASHIER MANAGEMENT
+    // ==============================================
     async function addCashier() {
-      await protectedAction(async () => {
-        const name = document.getElementById('cashier-name').value.trim();
-        const pass = document.getElementById('cashier-pass').value.trim();
-        if (!name || !pass) { alert("⚠️ Ilagay ang Pangalan at Password!"); return; }
-        if (pass.length !== 4) { alert("⚠️ Dapat 4 na numero lang ang Password!"); return; }
+      if (!(await requirePin())) return;
+
+      const name = document.getElementById('cashier-name').value.trim();
+      const pass = document.getElementById('cashier-pass').value.trim();
+
+      if (!name || !pass) { alert("⚠️ Ilagay ang Pangalan at Password!"); return; }
+      if (pass.length !== 4) { alert("⚠️ Dapat 4 na numero lang ang Password!"); return; }
+
+      try {
         await db.collection('cashiers').add({
-          name, password: pass, createdAt: new Date()
+          name,
+          password: pass,
+          createdAt: new Date()
         });
         document.getElementById('cashier-name').value = '';
         document.getElementById('cashier-pass').value = '';
         await loadCashiers();
         alert("✅ Cashier added successfully!");
-      });
+      } catch (err) {
+        alert("❌ Error adding cashier: " + err.message);
+      }
     }
 
     function renderCashierList() {
@@ -235,23 +267,43 @@
         return;
       }
       list.innerHTML = cashiers.map(c => `
-        <div style="padding:8px 0; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
-          <div><strong>${c.name}</strong><br><small>Password: ${c.password}</small></div>
-          <button class="btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteCashier('${c.id}')">Delete</button>
+        <div style="padding:10px 0; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <strong>${c.name}</strong><br>
+            <small style="color:#666;">Password: ${c.password}</small>
+          </div>
+          <button class="btn-danger" style="padding:6px 12px; font-size:14px;" onclick="deleteCashier('${c.id}')">🗑️ Delete</button>
         </div>
       `).join('');
     }
 
     async function deleteCashier(id) {
-      await protectedAction(async () => {
-        if (!confirm("❌ Burahin ba talaga?")) return;
+      if (!(await requirePin())) return;
+      if (!confirm("❌ Burahin ba talaga ang cashier na ito?")) return;
+
+      try {
         await db.collection('cashiers').doc(id).delete();
-      });
+        await loadCashiers();
+      } catch (err) {
+        alert("❌ Error deleting: " + err.message);
+      }
     }
 
-    // Update store dropdown in parent
-    function updateStoreDropdown() {
-      if (parent.updateStoreDropdownInner) parent.updateStoreDropdownInner(stores);
+    // ==============================================
+    // LOGOUT — Gumagana kahit sa iframe
+    // ==============================================
+    function doLogout() {
+      if (parent && parent.doLogout) {
+        parent.doLogout();
+      } else {
+        window.location.href = '../index.html';
+      }
+    }
+
+    function notifyParentStoreUpdate() {
+      if (parent.updateStoreDropdownInner) {
+        parent.updateStoreDropdownInner(stores);
+      }
     }
 
     window.onload = loadData;
