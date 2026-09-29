@@ -2,9 +2,9 @@
 // NhacTrade POS — Firebase Config
 // ==============================================
 
-// Your Firebase config
 const firebaseConfig = {
-  apiKey: "AIzaSyD3sZ9z-9z9z9z9z9z9z9z9z9z9z9z9z9z9z9",
+  // I-PALIT MO SA TUNAY MO NA VALUES MULA SA FIREBASE!
+  apiKey: "AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
   authDomain: "nhactrade-pos.firebaseapp.com",
   projectId: "nhactrade-pos",
   storageBucket: "nhactrade-pos.appspot.com",
@@ -12,22 +12,23 @@ const firebaseConfig = {
   appId: "1:123456789012:web:abc123def456ghi789jkl01"
 };
 
-// Initialize only once
-if (!window.firebaseApp) {
-  window.firebaseApp = firebase.initializeApp(firebaseConfig);
-  window.db = firebase.firestore();
+// Initialize Firebase — shared across all pages
+if (!window.nhacTrade) {
+  window.nhacTrade = {};
+  
+  // Load Firebase SDK
+  const app = firebase.initializeApp(firebaseConfig);
+  window.nhacTrade.db = firebase.firestore();
+  
   console.log("✅ Firebase connected");
-}
 
-// Offline persistence
-if (window.db) {
-  db.enablePersistence({ synchronizeTabs: true })
+  // Offline support
+  window.nhacTrade.db.enablePersistence({ synchronizeTabs: true })
     .then(() => console.log("✅ Offline mode ready"))
     .catch(err => {
-      if (err.code === 'failed-precondition') {
-        console.warn("⚠️ Multiple tabs open — offline mode limited");
-      } else if (err.code === 'unimplemented') {
-        console.warn("⚠️ Browser does not support offline persistence");
-      }
+      console.warn("⚠️ Offline mode note:", err.code);
     });
 }
+
+// Shortcut para madaling tawagin sa lahat ng pages
+const db = window.nhacTrade.db;
