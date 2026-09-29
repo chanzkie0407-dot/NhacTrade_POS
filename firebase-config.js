@@ -1,21 +1,33 @@
 // ==============================================
-// FIREBASE CONFIG — BPOS System
+// NhacTrade POS — Firebase Config
 // ==============================================
+
+// Your Firebase config
 const firebaseConfig = {
-  apiKey: "AIzaSyAxuB4gacmWIf3U4Ic5TsOxSHCaynR0vhw",
-  authDomain: "bpos-pos.firebaseapp.com",
-  projectId: "bpos-pos",
-  storageBucket: "bpos-pos.firebasestorage.app",
-  messagingSenderId: "1024558399693",
-  appId: "1:1024558399693:web:569e4e8207d5a75f32a984",
-  measurementId: "G-9LLPPB482N"
+  apiKey: "AIzaSyD3sZ9z-9z9z9z9z9z9z9z9z9z9z9z9z9z9z9",
+  authDomain: "nhactrade-pos.firebaseapp.com",
+  projectId: "nhactrade-pos",
+  storageBucket: "nhactrade-pos.appspot.com",
+  messagingSenderId: "123456789012",
+  appId: "1:123456789012:web:abc123def456ghi789jkl01"
 };
 
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+// Initialize only once
+if (!window.firebaseApp) {
+  window.firebaseApp = firebase.initializeApp(firebaseConfig);
+  window.db = firebase.firestore();
+  console.log("✅ Firebase connected");
+}
 
-// Enable Offline Mode
-db.enablePersistence({ synchronizeTabs: true })
-  .then(() => console.log("✅ Offline mode ready"))
-  .catch(err => console.log("Offline note:", err.code));
+// Offline persistence
+if (window.db) {
+  db.enablePersistence({ synchronizeTabs: true })
+    .then(() => console.log("✅ Offline mode ready"))
+    .catch(err => {
+      if (err.code === 'failed-precondition') {
+        console.warn("⚠️ Multiple tabs open — offline mode limited");
+      } else if (err.code === 'unimplemented') {
+        console.warn("⚠️ Browser does not support offline persistence");
+      }
+    });
+}
