@@ -11,6 +11,11 @@
 
   <!-- Shared Styles -->
   <link rel="stylesheet" href="shared/styles.css">
+  <style>
+    .screen { display: none; }
+    .screen.active { display: block; }
+    iframe { border: none; width: 100%; height: 85vh; }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -20,7 +25,7 @@
     </h1>
 
     <!-- LOGIN SCREEN -->
-    <div id="login-screen" class="card">
+    <div id="login-screen" class="card screen active">
       <h2>🔐 Login</h2>
       <select id="user-role">
         <option value="">-- Select Role --</option>
@@ -28,28 +33,26 @@
         <option value="cashier">Cashier</option>
         <option value="sp">Service Provider</option>
       </select>
-      <br>
+      <br><br>
       <input type="password" id="user-password" placeholder="Enter Password">
-      <br>
+      <br><br>
       <button class="btn-primary" onclick="login()">Login</button>
       <p id="login-error" style="color:red; margin-top:10px;"></p>
     </div>
 
-    <!-- SCREENS PLACEHOLDER — Loaded per role -->
-    <div id="screen-admin" class="screen hidden">
-      <iframe src="roles/admin.html" style="width:100%; height:85vh; border:none;"></iframe>
+    <!-- ADMIN SCREEN -->
+    <div id="screen-admin" class="screen">
+      <iframe src="roles/admin.html"></iframe>
     </div>
 
-    <div id="cashier-select-store" class="screen hidden">
-      <iframe src="roles/cashier.html#select-store" style="width:100%; height:85vh; border:none;"></iframe>
+    <!-- CASHIER SCREEN -->
+    <div id="screen-cashier" class="screen">
+      <iframe src="roles/cashier.html"></iframe>
     </div>
 
-    <div id="cashier-start-shift" class="screen hidden">
-      <iframe src="roles/cashier.html#start-shift" style="width:100%; height:85vh; border:none;"></iframe>
-    </div>
-
-    <div id="screen-sp" class="screen hidden">
-      <iframe src="roles/sp.html" style="width:100%; height:85vh; border:none;"></iframe>
+    <!-- SP SCREEN -->
+    <div id="screen-sp" class="screen">
+      <iframe src="roles/sp.html"></iframe>
     </div>
   </div>
 
@@ -57,14 +60,26 @@
   <script src="firebase-config.js"></script>
   <script src="shared/auth.js"></script>
   <script>
+    // Show only one screen
+    function showScreen(screenId) {
+      document.querySelectorAll('.screen').forEach(el => {
+        el.classList.remove('active');
+      });
+      const target = document.getElementById(screenId);
+      if (target) target.classList.add('active');
+    }
+
+    // Override auth.js showScreen
+    window.showScreen = showScreen;
+
     // Update Firebase Status
     setTimeout(() => {
       const status = document.getElementById('firebase-status');
-      if (db) {
+      if (typeof db !== 'undefined') {
         status.textContent = "● Connected";
         status.className = "status-indicator status-ready";
       }
-    }, 500);
+    }, 800);
   </script>
 </body>
 </html>
