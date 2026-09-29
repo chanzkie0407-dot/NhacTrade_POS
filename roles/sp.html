@@ -5,33 +5,31 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Service Provider — NhacTrade POS</title>
   <link rel="stylesheet" href="../shared/styles.css">
-  
 </head>
 <body>
   <div class="container">
     <h1>🔧 Service Provider</h1>
-    <button class="btn-danger" onclick="logout()">Logout</button>
+    <button class="btn-danger" onclick="logout()">🚪 Logout</button>
     <hr style="margin:20px 0;">
 
     <!-- PRIVACY PIN MANAGEMENT -->
     <div class="card">
       <h2>🔐 Privacy Pin Management</h2>
-      <p>Current Pin (default): <strong id="current-pin">1234</strong></p>
-      <p id="lock-status" style="color:green;">✅ System Unlocked</p>
-      <p id="attempts-display">Failed attempts: <span id="attempt-count">0</span>/5</p>
-
+      <p>Current Pin: <strong id="current-pin">1234</strong></p>
+      <p id="lock-status" style="color:green; font-weight:bold;">✅ System Unlocked</p>
+      <p>Failed Attempts: <span id="attempt-count">0</span>/5</p>
       <input type="text" id="new-pin" placeholder="New 4-6 digit Pin" maxlength="6">
       <button class="btn-primary" onclick="setNewPin()">Set New Pin</button>
       <span id="pin-msg" style="margin-left:10px;"></span>
     </div>
 
     <!-- UNLOCK SYSTEM -->
-    <div class="card" id="unlock-section" style="background:#fff2f2; border-color:red;">
+    <div class="card" style="background:#fff2f2; border:2px solid #dc2626;">
       <h2>🔓 Unlock Locked System</h2>
-      <p>If system is locked, enter Master Unlock Code:</p>
-      <input type="text" id="master-code" placeholder="Enter Master Code" maxlength="8">
-      <button class="btn-success" onclick="unlockSystem()">Unlock System</button>
-      <em style="margin-left:10px;">Default master: <strong>SPUNLOCK99</strong></em>
+      <p>Enter Master Unlock Code to reset attempts & unlock:</p>
+      <input type="text" id="master-code" placeholder="e.g. SPUNLOCK99" maxlength="12">
+      <button class="btn-success" onclick="unlockSystem()">✅ Unlock System</button>
+      <em style="margin-left:10px; color:#666;">Default: SPUNLOCK99</em>
     </div>
 
     <!-- ADMIN PASSWORD CONTROL -->
@@ -55,119 +53,127 @@
 
   <script src="../firebase-config.js"></script>
   <script>
-    // State
-    let currentPin = localStorage.getItem('privacyPin') || '1234';
-    let failedAttempts = parseInt(localStorage.getItem('failedAttempts') || '0');
-    let isLocked = localStorage.getItem('isLocked') === 'true';
-    const MASTER_UNLOCK = 'SPUNLOCK99'; // Change this!
+    // ==============================================
+    // SHARED STATE — SAME SA LAHAT NG PAGE
+    // ==============================================
+    const MASTER_UNLOCK = 'SPUNLOCK99'; // PALITAN MO ITO NG SARILI MO!
 
-    // Init
-    document.getElementById('current-pin').textContent = currentPin;
-    document.getElementById('attempt-count').textContent = failedAttempts;
-    updateLockUI();
-
-    function updateLockUI() {
-      if (isLocked) {
-        document.getElementById('lock-status').textContent = '🔒 SYSTEM LOCKED — Contact Service Provider';
-        document.getElementById('lock-status').style.color = 'red';
-      } else {
-        document.getElementById('lock-status').textContent = '✅ System Unlocked';
-        document.getElementById('lock-status').style.color = 'green';
-      }
-      document.getElementById('attempt-count').textContent = failedAttempts;
+    function getState() {
+      return {
+        currentPin: localStorage.getItem('privacyPin') || '1234',
+        failedAttempts: parseInt(localStorage.getItem('failedAttempts') || '0'),
+        isLocked: localStorage.getItem('isLocked') === 'true'
+      };
     }
 
-    // Called from other pages to verify pin
-    window.checkPrivacyPin = function(inputPin) {
-      if (isLocked) return { ok: false, locked: true };
+    function saveState(state) {
+      localStorage.setItem('failedAttempts', state.failedAttempts);
+      localStorage.setItem('isLocked', state.isLocked);
+      updateUI();
+    }
+
+    function updateUI() {
+      const s = getState();
+      document.getElementById('current-pin').textContent = s.currentPin;
+      document.getElementById('attempt-count').textContent = s.failedAttempts;
       
-      if (inputPin === currentPin) {
-        failedAttempts = 0;
+      if (s.isLocked) {
+        document.getElementById('lock-status').textContent = '🔒 SYSTEM LOCKED — Unlock below';
+        document.getElementById('lock-status').style.color = '#dc2626';
+      } else {
+        document.getElementById('lock-status').textContent = '✅ System Unlocked';
+        document.getElementById('lock-status').style.color = '#16a34a';
+      }
+    }
+
+    // ==============================================
+    // PIN VERIFICATION — Called by Admin/Cashier pages
+    // ==============================================
+    window.checkPrivacyPin = function(inputPin) {
+      const s = getState();
+      
+      if (s.isLocked) {
+        return { ok: false, locked: true };
+      }
+      
+      if (inputPin === s.currentPin) {
         localStorage.setItem('failedAttempts', '0');
-        updateLockUI();
+        updateUI();
         return { ok: true };
       } else {
-        failedAttempts++;
-        localStorage.setItem('failedAttempts', failedAttempts);
-        if (failedAttempts >= 5) {
-          isLocked = true;
+        const newAttempts = s.failedAttempts + 1;
+        localStorage.setItem('failedAttempts', newAttempts);
+        
+        if (newAttempts >= 5) {
           localStorage.setItem('isLocked', 'true');
+          updateUI();
+          return { ok: false, attemptsLeft: 0, locked: true };
         }
-        updateLockUI();
-        return { ok: false, attemptsLeft: 5 - failedAttempts, locked: isLocked };
+        
+        updateUI();
+        return { ok: false, attemptsLeft: 5 - newAttempts, locked: false };
       }
     };
 
+    // ==============================================
+    // ACTIONS
+    // ==============================================
     function setNewPin() {
       const newPin = document.getElementById('new-pin').value.trim();
       if (!/^\d{4,6}$/.test(newPin)) {
         document.getElementById('pin-msg').textContent = '❌ 4-6 digits only';
-        document.getElementById('pin-msg').style.color = 'red';
+        document.getElementById('pin-msg').style.color = '#dc2626';
         return;
       }
-      currentPin = newPin;
       localStorage.setItem('privacyPin', newPin);
       document.getElementById('current-pin').textContent = newPin;
       document.getElementById('new-pin').value = '';
-      document.getElementById('pin-msg').textContent = '✅ Pin Updated';
-      document.getElementById('pin-msg').style.color = 'green';
+      document.getElementById('pin-msg').textContent = '✅ Pin Updated! Same across all pages';
+      document.getElementById('pin-msg').style.color = '#16a34a';
     }
 
     function unlockSystem() {
-      // Palitan ang pin check section sa sp.html:
-const MASTER_UNLOCK = 'SPUNLOCK99'; // Palitan mo ito!
+      const code = document.getElementById('master-code').value.trim();
+      if (code === MASTER_UNLOCK) {
+        localStorage.setItem('isLocked', 'false');
+        localStorage.setItem('failedAttempts', '0');
+        alert('✅ SYSTEM UNLOCKED!\nAttempts reset to 0');
+        updateUI();
+        document.getElementById('master-code').value = '';
+      } else {
+        alert('❌ Wrong Master Code');
+      }
+    }
 
-function getPinState() {
-  return {
-    currentPin: localStorage.getItem('privacyPin') || '1234',
-    failedAttempts: parseInt(localStorage.getItem('failedAttempts') || '0'),
-    isLocked: localStorage.getItem('isLocked') === 'true'
-  };
-}
-
-function updateLockUI() {
-  const state = getPinState();
-  document.getElementById('attempt-count').textContent = state.failedAttempts;
-  
-  if (state.isLocked) {
-    document.getElementById('lock-status').textContent = '🔒 SYSTEM LOCKED — Unlock below';
-    document.getElementById('lock-status').style.color = 'red';
-  } else {
-    document.getElementById('lock-status').textContent = '✅ System Unlocked';
-    document.getElementById('lock-status').style.color = 'green';
-  }
-}
-
-function unlockSystem() {
-  const code = document.getElementById('master-code').value.trim();
-  if (code === MASTER_UNLOCK) {
-    localStorage.setItem('isLocked', 'false');
-    localStorage.setItem('failedAttempts', '0');
-    alert('✅ Unlocked! Attempts reset to 0');
-    updateLockUI();
-  } else {
-    alert('❌ Wrong Master Code');
-  }
-}
-
-function setNewPin() {
-  const newPin = document.getElementById('new-pin').value.trim();
-  if (!/^\d{4,6}$/.test(newPin)) {
-    alert('❌ 4-6 digits only');
-    return;
-  }
-  localStorage.setItem('privacyPin', newPin);
-  alert('✅ Pin updated! Same across all pages');
-  document.getElementById('new-pin').value = '';
-}
+    async function changeAdminPass() {
+      const newPass = document.getElementById('new-admin-pass').value.trim();
+      if (!newPass || newPass.length < 4) {
+        alert('⚠️ At least 4 characters please');
+        return;
+      }
+      try {
+        await db.collection('credentials').doc('admin').set({
+          password: newPass,
+          updatedAt: new Date()
+        }, { merge: true });
+        alert('✅ Admin Password Updated');
+        document.getElementById('new-admin-pass').value = '';
+      } catch (err) {
+        alert('❌ Error: ' + err.message);
+      }
+    }
 
     function logout() {
-      if (window.parent && window.parent.showScreen) {
-        window.parent.showScreen('login-screen');
+      if (parent && parent.doLogout) {
+        parent.doLogout();
       } else {
+        localStorage.removeItem('currentUser');
         window.location.href = '../index.html';
       }
     }
+
+    // Init
+    updateUI();
   </script>
 </body>
 </html>
