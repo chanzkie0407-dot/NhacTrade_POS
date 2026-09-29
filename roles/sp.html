@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Service Provider — NhacTrade POS</title>
+  <link rel="stylesheet" href="../shared/styles.css">
+  <style>
+    body { padding: 10px; }
+  </style>
+</head>
+<body>
+  <div>
+    <h2>🛠️ Service Provider</h2>
+    <button class="btn-danger" onclick="parent.doLogout()">Logout</button>
+    <hr style="margin:15px 0;">
+
+    <div class="card">
+      <h3>🔐 Privacy Pin Management</h3>
+      <p>Current Pin (default): <strong>1234</strong></p>
+      <input type="text" id="new-pin" placeholder="New 4-6 digit Pin" maxlength="6">
+      <button class="btn-primary" onclick="setPrivacyPin()">Set New Pin</button>
+    </div>
+
+    <div class="card">
+      <h3>🔑 Admin Password Control</h3>
+      <input type="password" id="new-admin-pass" placeholder="New Admin Password" maxlength="20">
+      <button class="btn-primary" onclick="changeAdminPassword()">Change Admin Password</button>
+    </div>
+
+    <div class="card">
+      <h3>💳 Subscription Plans</h3>
+      <ul style="margin:10px 25px;">
+        <li>₱199 — Weekly</li>
+        <li>₱325 — Every 2 Weeks</li>
+        <li>₱579 — Monthly</li>
+      </ul>
+      <p style="margin-top:10px;">✅ Free Trial: 7 days from first login</p>
+    </div>
+  </div>
+
+  <script src="../firebase-config.js"></script>
+  <script>
+    // === SET PRIVACY PIN ===
+    async function setPrivacyPin() {
+      const pin = document.getElementById('new-pin').value.trim();
+      if (!pin || pin.length < 4) {
+        alert("⚠️ Pin must be at least 4 digits!");
+        return;
+      }
+      await db.collection('settings').doc('privacyPin').set({ pin }, { merge: true });
+      alert("✅ Privacy Pin updated!");
+      document.getElementById('new-pin').value = '';
+    }
+
+    // === CHANGE ADMIN PASSWORD ===
+    async function changeAdminPassword() {
+      const newPass = document.getElementById('new-admin-pass').value.trim();
+      if (!newPass || newPass.length < 4) {
+        alert("⚠️ Password must be at least 4 characters!");
+        return;
+      }
+      await db.collection('credentials').doc('admin').set({
+        password: newPass,
+        updatedAt: new Date()
+      }, { merge: true });
+      alert("✅ Admin password updated!");
+      document.getElementById('new-admin-pass').value = '';
+    }
+  </script>
+</body>
+</html>
