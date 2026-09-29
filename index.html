@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NhacTrade POS — BPOS System</title>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+  <!-- Shared Styles -->
+  <link rel="stylesheet" href="shared/styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1 style="text-align:center; color:#1e40af; margin-bottom:20px;">
+      NhacTrade POS — BPOS System
+      <span id="firebase-status" class="status-indicator status-wait">⏳ Connecting...</span>
+    </h1>
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen" class="card">
+      <h2>🔐 Login</h2>
+      <select id="user-role">
+        <option value="">-- Select Role --</option>
+        <option value="admin">Admin / Owner</option>
+        <option value="cashier">Cashier</option>
+        <option value="sp">Service Provider</option>
+      </select>
+      <br>
+      <input type="password" id="user-password" placeholder="Enter Password">
+      <br>
+      <button class="btn-primary" onclick="login()">Login</button>
+      <p id="login-error" style="color:red; margin-top:10px;"></p>
+    </div>
+
+    <!-- SCREENS PLACEHOLDER — Loaded per role -->
+    <div id="screen-admin" class="screen hidden">
+      <iframe src="roles/admin.html" style="width:100%; height:85vh; border:none;"></iframe>
+    </div>
+
+    <div id="cashier-select-store" class="screen hidden">
+      <iframe src="roles/cashier.html#select-store" style="width:100%; height:85vh; border:none;"></iframe>
+    </div>
+
+    <div id="cashier-start-shift" class="screen hidden">
+      <iframe src="roles/cashier.html#start-shift" style="width:100%; height:85vh; border:none;"></iframe>
+    </div>
+
+    <div id="screen-sp" class="screen hidden">
+      <iframe src="roles/sp.html" style="width:100%; height:85vh; border:none;"></iframe>
+    </div>
+  </div>
+
+  <!-- Load Shared Modules -->
+  <script src="firebase-config.js"></script>
+  <script src="shared/auth.js"></script>
+  <script>
+    // Update Firebase Status
+    setTimeout(() => {
+      const status = document.getElementById('firebase-status');
+      if (db) {
+        status.textContent = "● Connected";
+        status.className = "status-indicator status-ready";
+      }
+    }, 500);
+  </script>
+</body>
+</html>
