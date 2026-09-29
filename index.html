@@ -20,11 +20,17 @@
     .btn-danger { background: #dc2626; color: white; }
     input, select { padding: 10px; margin: 5px; border: 1px solid #ddd; border-radius: 6px; width: 250px; }
     .hidden { display: none !important; }
+    .status-indicator { font-size: 13px; margin-left: 10px; }
+    .status-ready { color: #16a34a; }
+    .status-wait { color: #f59e0b; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1 style="text-align:center; color:#1e40af; margin-bottom:20px;">BPOS - General Business System</h1>
+    <h1 style="text-align:center; color:#1e40af; margin-bottom:20px;">
+      BPOS - General Business System
+      <span id="firebase-status" class="status-indicator status-wait">⏳ Connecting...</span>
+    </h1>
 
     <!-- LOGIN SCREEN -->
     <div id="login-screen" class="card">
@@ -38,7 +44,7 @@
       <br>
       <input type="password" id="user-password" placeholder="Enter Password">
       <br>
-      <button class="btn-primary" onclick="login()">Login</button>
+      <button class="btn-primary" onclick="login()" id="login-btn">Login</button>
       <p id="login-error" style="color:red; margin-top:10px;"></p>
     </div>
 
@@ -56,35 +62,58 @@
         measurementId: "G-9LLPPB482N"
       };
 
-      firebase.initializeApp(firebaseConfig);
-      const db = firebase.firestore();
-      
-      // === OFFLINE MODE ===
-      db.enablePersistence({ synchronizeTabs: true })
-        .then(() => console.log("✅ Offline mode ready"))
-        .catch(err => console.log("Offline note:", err.code));
-
-      // === DEFAULT CREDENTIALS ===
-      const DEFAULT_PASS = {
-        admin: "8888",
-        sp: "19970407chan"
-      };
-      
-      // === GLOBAL STATE ===
+      // === GLOBAL VARIABLES — NAKAUNA NA ✅ ===
+      let db = null;
       let currentUser = null;
       let inactivityTimer = null;
       let cashiers = [];
       let stores = [];
+      const DEFAULT_PASS = {
+        admin: "8888",
+        sp: "19970407chan"
+      };
 
-      // === DATA LOADERS — INUNA NA ITO ✅ ===
+      // === INITIALIZE FIREBASE ===
+      async function initFirebase() {
+        try {
+          firebase.initializeApp(firebaseConfig);
+          db = firebase.firestore();
+          
+          // Enable offline mode
+          await db.enablePersistence({ synchronizeTabs: true });
+          console.log("✅ Offline mode ready");
+          
+          // Update status
+          document.getElementById('firebase-status').textContent = "● Connected";
+          document.getElementById('firebase-status').className = "status-indicator status-ready";
+          
+        } catch (err) {
+          console.error("❌ Firebase error:", err);
+          document.getElementById('firebase-status').textContent = "⚠️ Error: " + err.code;
+        }
+      }
+
+      // === DATA LOADERS ===
       async function loadCashiers() {
-        const snap = await db.collection('cashiers').get();
-        cashiers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (!db) return;
+        try {
+          const snap = await db.collection('cashiers').get();
+          cashiers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        } catch (err) {
+          console.log("No cashiers yet — will add later");
+          cashiers = [];
+        }
       }
       
       async function loadStores() {
-        const snap = await db.collection('stores').get();
-        stores = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (!db) return;
+        try {
+          const snap = await db.collection('stores').get();
+          stores = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        } catch (err) {
+          console.log("No stores yet — will add later");
+          stores = [];
+        }
       }
 
       // === SCREEN MANAGEMENT ===
@@ -117,6 +146,11 @@
 
       // === LOGIN FUNCTION ===
       async function login() {
+        if (!db) {
+          alert("⏳ Connecting to server... Please try again in 3 seconds.");
+          return;
+        }
+        
         const role = document.getElementById('user-role').value;
         const pass = document.getElementById('user-password').value;
         const errorEl = document.getElementById('login-error');
@@ -129,19 +163,33 @@
 
         // Admin Login
         if (role === 'admin') {
-          const adminDoc = await db.collection('credentials').doc('admin').get();
-          const adminPass = adminDoc.exists && adminDoc.data().password 
-            ? adminDoc.data().password 
-            : DEFAULT_PASS.admin;
-          
-          if (pass === adminPass) {
-            currentUser = { role, id: 'admin', name: 'Admin' };
-            await loadStores();
-            await loadCashiers();
-            showScreen('admin');
-            resetInactivityTimer();
-            return;
-          } else {
+          try {
+            const adminDoc = await db.collection('credentials').doc('admin').get();
+            const adminPass = adminDoc.exists && adminDoc.data() && adminDoc.data().password
+              ? adminDoc.data().password 
+              : DEFAULT_PASS.admin;
+            
+            if (pass === adminPass) {
+              currentUser = { role, id: 'admin', name: 'Admin' };
+              await loadStores();
+              await loadCashiers();
+              showScreen('screen-admin');
+              resetInactivityTimer();
+              return;
+            } else {
+              errorEl.textContent = "❌ Wrong password!";
+              return;
+            }
+          } catch (err) {
+            console.log("Using default admin password");
+            if (pass === DEFAULT_PASS.admin) {
+              currentUser = { role, id: 'admin', name: 'Admin' };
+              await loadStores();
+              await loadCashiers();
+              showScreen('screen-admin');
+              resetInactivityTimer();
+              return;
+            }
             errorEl.textContent = "❌ Wrong password!";
             return;
           }
@@ -149,17 +197,29 @@
 
         // SP Login
         if (role === 'sp') {
-          const spDoc = await db.collection('credentials').doc('sp').get();
-          const spPass = spDoc.exists && spDoc.data().password 
-            ? spDoc.data().password 
-            : DEFAULT_PASS.sp;
-          
-          if (pass === spPass) {
-            currentUser = { role, id: 'sp', name: 'Service Provider' };
-            showScreen('sp');
-            resetInactivityTimer();
-            return;
-          } else {
+          try {
+            const spDoc = await db.collection('credentials').doc('sp').get();
+            const spPass = spDoc.exists && spDoc.data() && spDoc.data().password
+              ? spDoc.data().password 
+              : DEFAULT_PASS.sp;
+            
+            if (pass === spPass) {
+              currentUser = { role, id: 'sp', name: 'Service Provider' };
+              showScreen('screen-sp');
+              resetInactivityTimer();
+              return;
+            } else {
+              errorEl.textContent = "❌ Wrong password!";
+              return;
+            }
+          } catch (err) {
+            console.log("Using default SP password");
+            if (pass === DEFAULT_PASS.sp) {
+              currentUser = { role, id: 'sp', name: 'Service Provider' };
+              showScreen('screen-sp');
+              resetInactivityTimer();
+              return;
+            }
             errorEl.textContent = "❌ Wrong password!";
             return;
           }
@@ -185,6 +245,9 @@
       // Reset timer on activity
       document.addEventListener('click', resetInactivityTimer);
       document.addEventListener('keydown', resetInactivityTimer);
+      
+      // === START FIREBASE ===
+      initFirebase();
     </script>
 
     <!-- CASHIER: Select Store -->
@@ -227,7 +290,7 @@
 
     <script>
       // === POPULATE STORE DROPDOWN ===
-      setTimeout(() => {
+      function updateStoreDropdown() {
         const select = document.getElementById('selected-store');
         if (select && stores.length > 0) {
           select.innerHTML = '<option value="">-- Choose Store --</option>';
@@ -235,7 +298,9 @@
             select.innerHTML += `<option value="${s.id}">${s.name}</option>`;
           });
         }
-      }, 300);
+      }
+      
+      setTimeout(updateStoreDropdown, 500);
 
       // === CASHIER SELECT STORE ===
       function cashierSelectStore() {
