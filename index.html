@@ -4,10 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BPOS - General Business System</title>
-    <!-- Firebase SDK -->
+  
+  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <style>
+  
+  <style>
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
     body { background: #f0f4f8; color: #333; }
     .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
@@ -19,11 +21,12 @@
     input, select { padding: 10px; margin: 5px; border: 1px solid #ddd; border-radius: 6px; width: 250px; }
     .hidden { display: none !important; }
   </style>
-  </head>
+</head>
 <body>
   <div class="container">
     <h1 style="text-align:center; color:#1e40af; margin-bottom:20px;">BPOS - General Business System</h1>
-        <!-- LOGIN SCREEN -->
+
+    <!-- LOGIN SCREEN -->
     <div id="login-screen" class="card">
       <h2>🔐 Login</h2>
       <select id="user-role">
@@ -38,9 +41,10 @@
       <button class="btn-primary" onclick="login()">Login</button>
       <p id="login-error" style="color:red; margin-top:10px;"></p>
     </div>
-        <script>
+
+    <script>
       // ==============================================
-      // 🔴 FIREBASE CONFIG — I-paste ang nakuha mo
+      // FIREBASE CONFIG
       // ==============================================
       const firebaseConfig = {
         apiKey: "AIzaSyAxuB4gacmWIf3U4Ic5TsOxSHCaynR0vhw",
@@ -59,17 +63,59 @@
       db.enablePersistence({ synchronizeTabs: true })
         .then(() => console.log("✅ Offline mode ready"))
         .catch(err => console.log("Offline note:", err.code));
-                // === DEFAULT CREDENTIALS & STATE ===
+
+      // === DEFAULT CREDENTIALS ===
       const DEFAULT_PASS = {
         admin: "8888",
         sp: "19970407chan"
       };
       
+      // === GLOBAL STATE ===
       let currentUser = null;
       let inactivityTimer = null;
       let cashiers = [];
       let stores = [];
-                // === LOGIN FUNCTION ===
+
+      // === DATA LOADERS — INUNA NA ITO ✅ ===
+      async function loadCashiers() {
+        const snap = await db.collection('cashiers').get();
+        cashiers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      }
+      
+      async function loadStores() {
+        const snap = await db.collection('stores').get();
+        stores = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      }
+
+      // === SCREEN MANAGEMENT ===
+      function showScreen(screenId) {
+        document.getElementById('login-screen').classList.add('hidden');
+        document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
+        const el = document.getElementById(screenId);
+        if (el) el.classList.remove('hidden');
+      }
+
+      // === AUTO-LOGOUT ===
+      function resetInactivityTimer() {
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(() => {
+          doLogout();
+          alert("⏰ Auto-logout: 10 minutes idle! Log in again.");
+        }, 10 * 60 * 1000);
+      }
+
+      // === LOGOUT ===
+      function doLogout() {
+        currentUser = null;
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+        document.getElementById('user-role').value = '';
+        document.getElementById('user-password').value = '';
+        document.getElementById('login-error').textContent = '';
+        document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
+        document.getElementById('login-screen').classList.remove('hidden');
+      }
+
+      // === LOGIN FUNCTION ===
       async function login() {
         const role = document.getElementById('user-role').value;
         const pass = document.getElementById('user-password').value;
@@ -84,7 +130,10 @@
         // Admin Login
         if (role === 'admin') {
           const adminDoc = await db.collection('credentials').doc('admin').get();
-          const adminPass = adminDoc.exists ? adminDoc.data().password : DEFAULT_PASS.admin;
+          const adminPass = adminDoc.exists && adminDoc.data().password 
+            ? adminDoc.data().password 
+            : DEFAULT_PASS.admin;
+          
           if (pass === adminPass) {
             currentUser = { role, id: 'admin', name: 'Admin' };
             await loadStores();
@@ -97,10 +146,14 @@
             return;
           }
         }
-                // SP Login
+
+        // SP Login
         if (role === 'sp') {
           const spDoc = await db.collection('credentials').doc('sp').get();
-          const spPass = spDoc.exists ? spDoc.data().password : DEFAULT_PASS.sp;
+          const spPass = spDoc.exists && spDoc.data().password 
+            ? spDoc.data().password 
+            : DEFAULT_PASS.sp;
+          
           if (pass === spPass) {
             currentUser = { role, id: 'sp', name: 'Service Provider' };
             showScreen('sp');
@@ -128,52 +181,13 @@
           }
         }
       }
-                // === DATA LOADERS ===
-      async function loadCashiers() {
-        const snap = await db.collection('cashiers').get();
-        cashiers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      }
 
-      async function loadStores() {
-        const snap = await db.collection('stores').get();
-        stores = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      }
-                // === SCREEN MANAGEMENT ===
-      function showScreen(screenId) {
-        document.getElementById('login-screen').classList.add('hidden');
-        document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
-        const el = document.getElementById(screenId);
-        if (el) el.classList.remove('hidden');
-      }
-
-      // === AUTO-LOGOUT — 10 Minutes ===
-      function resetInactivityTimer() {
-        if (inactivityTimer) clearTimeout(inactivityTimer);
-        inactivityTimer = setTimeout(() => {
-          doLogout();
-          alert("⏰ Auto-logout: 10 minutes idle! Log in again.");
-        }, 10 * 60 * 1000);
-      }
-                // === LOGOUT — Clear Password Field Automatically ===
-      function doLogout() {
-        currentUser = null;
-        if (inactivityTimer) clearTimeout(inactivityTimer);
-        
-        // Clear inputs completely
-        document.getElementById('user-role').value = '';
-        document.getElementById('user-password').value = '';
-        document.getElementById('login-error').textContent = '';
-        
-        // Back to login screen
-        document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
-        document.getElementById('login-screen').classList.remove('hidden');
-      }
-
-      // Reset timer on any activity
+      // Reset timer on activity
       document.addEventListener('click', resetInactivityTimer);
       document.addEventListener('keydown', resetInactivityTimer);
     </script>
-        <!-- CASHIER: Select Store -->
+
+    <!-- CASHIER: Select Store -->
     <div id="cashier-select-store" class="screen hidden card">
       <h2>👤 Cashier — Select Store</h2>
       <p>Welcome!</p>
@@ -184,7 +198,8 @@
       <button class="btn-primary" onclick="cashierSelectStore()">Continue</button>
       <button class="btn-danger" onclick="doLogout()">Logout</button>
     </div>
-        <!-- CASHIER: Start Shift -->
+
+    <!-- CASHIER: Start Shift -->
     <div id="cashier-start-shift" class="screen hidden card">
       <h2>🕐 Start Shift</h2>
       <label>Enter Opening Cash Float (₱):</label><br>
@@ -193,7 +208,8 @@
       <button class="btn-success" onclick="startShift()">✅ Start Shift</button>
       <button class="btn-danger" onclick="doLogout()">Logout</button>
     </div>
-        <!-- ADMIN SCREEN -->
+
+    <!-- ADMIN SCREEN -->
     <div id="screen-admin" class="screen hidden card">
       <h2>👑 Admin / Owner Dashboard</h2>
       <button class="btn-danger" onclick="doLogout()">Logout</button>
@@ -208,7 +224,8 @@
       <hr style="margin:15px 0;">
       <p>✅ SP base loaded — Subscription & Password Controls next!</p>
     </div>
-        <script>
+
+    <script>
       // === POPULATE STORE DROPDOWN ===
       setTimeout(() => {
         const select = document.getElementById('selected-store');
@@ -240,6 +257,6 @@
         alert("✅ Shift started! POS features loading next babe 💛");
       }
     </script>
-      </div>
+  </div>
 </body>
 </html>
